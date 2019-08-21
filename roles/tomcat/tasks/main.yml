@@ -1,0 +1,181 @@
+##########################
+### UPDATE CACHE..   #####
+##########################
+
+- name: Update cache
+  apt:
+      update_cache: yes
+
+############################################
+### INSTAL JAVA VERION 1.8..  ############## 
+############################################
+
+- name: Install Java version 1.8 
+  apt:
+      name: ['{{ nginx }}', '{{ java_1_8 }}']             #  "{{ item }}"
+      state: present
+      #  with_items:
+      #          - "{{ nginx }}"     
+      #          - "{{ java_1_8 }}"  
+  ignore_errors: yes
+
+
+- name: Copy environment variables to remote host
+  lineinfile: 
+      path: /etc/profile
+      line: "export {{ item }}\n "
+  with_items:    
+          - "{{ javahome }}"
+          -  "{{ path }}"
+  register: result
+- debug:
+        var: result
+
+
+- name: Source bashrc file
+  shell: source /etc/profile
+  args:
+     executable: /bin/bash
+  ignore_errors: yes
+
+#############################################
+### INSTAL TOMCAT APACHE VERSION 9..     ####  
+#############################################
+
+- name: Creating tomcat directory in /opt
+  file:
+          path: /opt/tomcat
+          state: directory
+          mode: '0775'
+          recurse: yes
+
+############################################
+
+- name: Create tomcat user & group
+  user:
+          name: tomcat
+          shell: /bin/bash
+          state: present
+          home: /opt/tomcat
+          
+############################################
+
+- name: Change owner /opt/tomcat
+  file:
+          dest: /opt/tomcat
+          owner: tomcat
+          group: tomcat
+          recurse: yes
+
+###########################################          
+
+- name: Download  Tomcat9 
+  get_url:
+          url: http://ftp.byfly.by/pub/apache.org/tomcat/tomcat-9/v9.0.24/bin/apache-tomcat-9.0.24.tar.gz
+          dest: /opt/tomcat  
+
+ #########################################################################################################
+
+- name: Unarchive a file that is already on the remote machine
+  unarchive:
+    src: /opt/tomcat/apache-tomcat-9.0.24.tar.gz
+    dest: /opt/tomcat
+    remote_src: yes
+
+############################################################
+
+- name: Copy files
+  shell: 'cp -r /opt/tomcat/apache-tomcat-9.0.24/* /opt/tomcat/'
+
+########################################################
+
+- name: Change owner /opt/tomcat
+  file:
+          dest: /opt/tomcat
+          owner: tomcat
+          group: tomcat
+          recurse: yes               
+
+
+
+###########################################
+
+
+
+- name: Creating tomcat directory in /opt
+  file:
+          path: /opt/tomcat
+          state: directory
+          mode: '0775'
+          recurse: yes
+
+#############################################################    
+
+- name: Copy file to remote host
+  copy:
+          src: tomcat.service
+          dest: /etc/systemd/system/
+
+############################################################
+
+- name: Reload deamon & start tomcat service
+  systemd:
+      state: started
+      daemon_reload: yes
+      enabled: yes
+      name: tomcat
+
+
+      #- name: Start Tomcat
+      #  shell: "cd /opt/tomcat/bin/ && ./startup.sh"
+
+
+
+##################################################################################
+#######  ADD LINES & SYMBOLS TO FILES ############################################
+##################################################################################
+
+
+
+- name: Comment line
+  lineinfile:
+          path: /opt/tomcat/webapps/{{ item }}/META-INF/context.xml
+          regexp: '^  <Valve'
+          line: '<!-- <Valve className="org.apache.catalina.valves.RemoteAddrValve"'
+  with_items:
+          - host-manager
+          - manager
+
+
+
+
+- name: Comment line in file context.xml
+  lineinfile:
+          path: /opt/tomcat/webapps/{{ item }}/META-INF/context.xml
+          regexp: '^         allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" />'
+          line: '         <allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" /> -->'
+  with_items:
+          - host-manager
+          - manager  
+
+
+
+- name: Add username & password to file tomcat-users.xml
+  lineinfile:
+          path: /opt/tomcat/conf/tomcat-users.xml
+          insertbefore: '^</tomcat-users>'
+          line:  '   <user username="{{ gui_user }}" password="{{ password }}" roles="manager-gui,admin-gui"/>'
+
+
+
+
+- name: Nginx  conf file change
+  copy: 
+      src:  "nginx.conf"
+      dest: /etc/nginx/nginx.conf
+
+
+- name:  Restart NGiNX
+  service:
+          name: nginx
+          state: restarted 

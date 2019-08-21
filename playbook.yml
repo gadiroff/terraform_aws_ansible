@@ -1,0 +1,9 @@
+---
+- name: Creating dev environment
+  hosts: all
+  user: ubuntu
+  gather_facts: false
+  become: yes
+
+  roles:
+          - role: roles/tomcat
